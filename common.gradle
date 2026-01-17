@@ -1,9 +1,8 @@
-// 直接读取 mcVersion
 final int mcVersion = project.mcVersion
 
 apply plugin: 'maven-publish'
-apply plugin: 'fabric-loom'
-apply plugin: 'com.replaymod.preprocess' // 这里的插件已经由根目录的 buildscript 加载到了 classpath
+apply plugin: 'fabric-loom' // 对应 root 中的 net.fabricmc.loom
+apply plugin: 'com.replaymod.preprocess'
 apply plugin: 'net.kyori.blossom'
 
 JavaVersion JAVA_COMPATIBILITY = mcVersion >= 11800 ? JavaVersion.VERSION_17 : JavaVersion.VERSION_1_8
@@ -39,6 +38,8 @@ dependencies {
             }
         }
     }
+    
+    runtimeOnly project(path: ":fabricWrapper")
 }
 
 java {
