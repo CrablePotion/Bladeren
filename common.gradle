@@ -1,4 +1,4 @@
-// 1. 读取由根项目注入的变量
+// 直接读取 rootProject 注入的变量，不再需要 preprocess { vars.get() }
 final int mcVersion = project.mcVersion
 
 apply plugin: 'maven-publish'
@@ -6,22 +6,17 @@ apply plugin: 'fabric-loom'
 apply plugin: 'com.replaymod.preprocess'
 apply plugin: 'net.kyori.blossom'
 
-// 2. 判定 Java 版本 (1.20.1 -> Java 17)
+// 自动判定 Java 版本
 JavaVersion JAVA_COMPATIBILITY
 if (mcVersion >= 11800) {
     JAVA_COMPATIBILITY = JavaVersion.VERSION_17
-} else if (mcVersion >= 11700) {
-    JAVA_COMPATIBILITY = JavaVersion.VERSION_16
 } else {
     JAVA_COMPATIBILITY = JavaVersion.VERSION_1_8
 }
 
 repositories {
     mavenLocal()
-    maven {
-        url = 'https://jitpack.io'
-        content { includeGroupAndSubgroups('com.github') }
-    }
+    maven { url = 'https://jitpack.io' }
     maven { url = 'https://maven.hendrixshen.top/' }
     maven { url = 'https://www.cursemaven.com' }
     maven { url = 'https://api.modrinth.com/maven' }
@@ -40,12 +35,13 @@ dependencies {
         exclude group: "carpet", module: "fabric-carpet"
     }
 
-    // 动态依赖
-    [
+    // 动态依赖加载
+    def deps = [
         ["curse.maven:minihud-244260", "minihud"],
         ["curse.maven:litematica-308892", "litematica"],
         ["maven.modrinth:client-commands", "clientcommands"]
-    ].each { entry ->
+    ]
+    deps.each { entry ->
         if (project.hasProperty("${entry[1]}_version")) {
             modApi("${entry[0]}:${project.property("${entry[1]}_version")}") {
                 transitive(entry[1] == "clientcommands")
@@ -76,7 +72,6 @@ processResources {
         "mod_name": project.mod_name,
         "mod_version": project.version,
         "minecraft_dependency": project.minecraft_dependency,
-        "magiclib_dependency": project.magiclib_dependency
     ]
     inputs.properties(props)
     filesMatching("fabric.mod.json") { expand props }
@@ -85,13 +80,5 @@ processResources {
 blossom {
     replaceToken("@MOD_IDENTIFIER@", project.mod_id)
     replaceToken("@MOD_NAME@", project.mod_name)
-}
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from components.java
-            artifactId = base.archivesName.get()
-        }
-    }
+    replaceToken("@MINECRAFT_VERSION_IDENTIFY@", project.minecraft_version.replace(".", "_"))
 }
