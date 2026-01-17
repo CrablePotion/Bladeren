@@ -4,28 +4,24 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // 直接从 JitPack 下载 Jar 包，不走插件市场逻辑
         classpath "com.github.Fallen-Breath:preprocess:c5abb4fb12"
     }
 }
 
-// 基础插件保留
 plugins {
     id 'maven-publish'
     id 'org.ajoberstar.grgit' version '5.2.0'
-    // Loom 等插件依然可以用这种方式，因为它们在官方仓库有标记文件
-    id 'net.fabricmc.fabric-loom' version '1.3-SNAPSHOT' apply false
+    // 升级 Loom 版本到 1.7-SNAPSHOT (适配 1.20.1)
+    id 'net.fabricmc.loom' version '1.7-SNAPSHOT' apply false
     id 'io.github.juuxel.loom-vineflower' version '1.11.0' apply false
     id 'net.kyori.blossom' version '1.3.1' apply false
 }
 
-// 手动应用插件
 apply plugin: "com.replaymod.preprocess"
 
 preprocess {
     def mc1201 = createNode('1.20.1', 1_20_01, '')
 
-    // 关键：将版本号注入子项目
     for (final def node in getNodes()) {
         def p = findProject(node.project)
         if (p != null) {
