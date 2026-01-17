@@ -1,44 +1,37 @@
-buildscript {
-    repositories {
-        maven { url = "https://jitpack.io" }
-        mavenCentral()
-    }
-    dependencies {
-        classpath "com.github.Fallen-Breath:preprocess:610499e906"
-    }
-}
-
 plugins {
-    id("fabric-loom").version("1.3-SNAPSHOT").apply(false)
-    id("io.github.juuxel.loom-vineflower").version("1.11.0").apply(false)
-    id("net.kyori.blossom").version("1.3.1").apply(false)
-    id("org.ajoberstar.grgit").version("5.2.0")
-    id("maven-publish")
+    id 'maven-publish'
+    id 'com.replaymod.preprocess' version 'c5abb4fb12' // 使用模板同款哈希
+    id 'net.fabricmc.fabric-loom' version '1.3-SNAPSHOT' apply false
+    id 'io.github.juuxel.loom-vineflower' version '1.11.0' apply false
+    id 'net.kyori.blossom' version '1.3.1' apply false
+    id 'org.ajoberstar.grgit' version '5.2.0'
 }
-
-apply plugin: "com.replaymod.preprocess"
 
 preprocess {
-    createNode("1.20.1", 12001, "mojang")
+    // 定义节点：1.20.1 对应整数 12001
+    def mc1201 = createNode('1.20.1', 1_20_01, '')
+
+    // 关键启示：主动将 mcVersion 注入到子项目的 ext 变量中
+    for (final def node in getNodes()) {
+        def p = findProject(node.project)
+        if (p != null) {
+            p.ext.mcVersion = node.mcVersion
+        }
+    }
 }
 
-allprojects {
-    apply plugin: "com.replaymod.preprocess"
-}
-
+// 统一版本号逻辑
 ext {
-    def environmentMap = System.getenv()
-    getVersionGit = { List paths ->
-        if (grgit == null) return "nogit"
-        def latest = paths.isEmpty() ? grgit.log(maxCommits: 1) : grgit.log(paths: paths, maxCommits: 1)
-        return latest.isEmpty() ? "uncommited" : "${latest.get(0).id.substring(0, 7)}"
+    getBuildNumber = { System.getenv("GITHUB_RUN_NUMBER") ?: "dev" }
+    getArtifactVersion = {
+        def base = project.mod_version
+        return System.getenv("BUILD_RELEASE") == "true" ? base : "${base}+build.${getBuildNumber()}"
     }
-    getVersionPatch = { List paths ->
-        if (grgit == null) return 0
-        return paths.isEmpty() ? grgit.log().size() : grgit.log(paths: paths).size()
-    }
-    getVersionType = { environmentMap.BUILD_TYPE == "RELEASE" ? "stable" : "dev" }
-    getMavenArtifactVersion = { ext.getVersionType() == "stable" ? "${project.mod_version}.${ext.getVersionPatch([])}" : project.version }
 }
 
-version("${project.mod_version}.${project.getVersionPatch([])}+${project.getVersionGit([])}-${project.getVersionType()}")
+version = getArtifactVersion()
+
+// 这里的 clean 任务保持
+tasks.register("cleanPreprocessSources") {
+    doFirst { subprojects { delete(file("build/preprocessed")) } }
+}
