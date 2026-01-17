@@ -1,18 +1,12 @@
-// 直接读取 rootProject 注入的变量，不再需要 preprocess { vars.get() }
+// 直接读取 mcVersion
 final int mcVersion = project.mcVersion
 
 apply plugin: 'maven-publish'
 apply plugin: 'fabric-loom'
-apply plugin: 'com.replaymod.preprocess'
+apply plugin: 'com.replaymod.preprocess' // 这里的插件已经由根目录的 buildscript 加载到了 classpath
 apply plugin: 'net.kyori.blossom'
 
-// 自动判定 Java 版本
-JavaVersion JAVA_COMPATIBILITY
-if (mcVersion >= 11800) {
-    JAVA_COMPATIBILITY = JavaVersion.VERSION_17
-} else {
-    JAVA_COMPATIBILITY = JavaVersion.VERSION_1_8
-}
+JavaVersion JAVA_COMPATIBILITY = mcVersion >= 11800 ? JavaVersion.VERSION_17 : JavaVersion.VERSION_1_8
 
 repositories {
     mavenLocal()
@@ -30,36 +24,27 @@ dependencies {
     modCompileOnly "org.projectlombok:lombok:${project.lombok_version}"
     annotationProcessor "org.projectlombok:lombok:${project.lombok_version}"
 
-    // MagicLib
     modImplementation("top.hendrixshen.magiclib:magiclib-${project.minecraft_version.replace(".", "_")}:${project.magiclib_version}") {
         exclude group: "carpet", module: "fabric-carpet"
     }
 
-    // 动态依赖加载
-    def deps = [
+    [
         ["curse.maven:minihud-244260", "minihud"],
         ["curse.maven:litematica-308892", "litematica"],
         ["maven.modrinth:client-commands", "clientcommands"]
-    ]
-    deps.each { entry ->
+    ].each { entry ->
         if (project.hasProperty("${entry[1]}_version")) {
             modApi("${entry[0]}:${project.property("${entry[1]}_version")}") {
                 transitive(entry[1] == "clientcommands")
             }
         }
     }
-    
-    runtimeOnly project(path: ":fabricWrapper")
 }
 
 java {
     sourceCompatibility = JAVA_COMPATIBILITY
     targetCompatibility = JAVA_COMPATIBILITY
     withSourcesJar()
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = "UTF-8"
 }
 
 base {
@@ -71,7 +56,7 @@ processResources {
         "mod_id": project.mod_id,
         "mod_name": project.mod_name,
         "mod_version": project.version,
-        "minecraft_dependency": project.minecraft_dependency,
+        "minecraft_dependency": project.minecraft_dependency
     ]
     inputs.properties(props)
     filesMatching("fabric.mod.json") { expand props }
@@ -80,5 +65,4 @@ processResources {
 blossom {
     replaceToken("@MOD_IDENTIFIER@", project.mod_id)
     replaceToken("@MOD_NAME@", project.mod_name)
-    replaceToken("@MINECRAFT_VERSION_IDENTIFY@", project.minecraft_version.replace(".", "_"))
 }
