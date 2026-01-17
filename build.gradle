@@ -1,18 +1,31 @@
+buildscript {
+    repositories {
+        maven { url = "https://jitpack.io" }
+        mavenCentral()
+    }
+    dependencies {
+        // 直接从 JitPack 下载 Jar 包，不走插件市场逻辑
+        classpath "com.github.Fallen-Breath:preprocess:c5abb4fb12"
+    }
+}
+
+// 基础插件保留
 plugins {
     id 'maven-publish'
-    // 这里的 ID 会被 settings.gradle 里的 resolutionStrategy 拦截并重定向到 JitPack
-    id 'com.replaymod.preprocess' version 'c5abb4fb12'
+    id 'org.ajoberstar.grgit' version '5.2.0'
+    // Loom 等插件依然可以用这种方式，因为它们在官方仓库有标记文件
     id 'net.fabricmc.fabric-loom' version '1.3-SNAPSHOT' apply false
     id 'io.github.juuxel.loom-vineflower' version '1.11.0' apply false
     id 'net.kyori.blossom' version '1.3.1' apply false
-    id 'org.ajoberstar.grgit' version '5.2.0'
 }
 
+// 手动应用插件
+apply plugin: "com.replaymod.preprocess"
+
 preprocess {
-    // 对齐模板的节点定义方式
     def mc1201 = createNode('1.20.1', 1_20_01, '')
 
-    // 关键启示：主动遍历节点并注入 mcVersion 变量
+    // 关键：将版本号注入子项目
     for (final def node in getNodes()) {
         def p = findProject(node.project)
         if (p != null) {
@@ -21,12 +34,4 @@ preprocess {
     }
 }
 
-ext {
-    getBuildNumber = { System.getenv("GITHUB_RUN_NUMBER") ?: "dev" }
-}
-
-version = "${project.mod_version}+build.${getBuildNumber()}"
-
-tasks.register("cleanPreprocessSources") {
-    doFirst { subprojects { delete(file("build/preprocessed")) } }
-}
+version = "${project.mod_version}+build.${System.getenv("GITHUB_RUN_NUMBER") ?: "dev"}"
