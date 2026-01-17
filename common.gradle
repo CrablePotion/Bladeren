@@ -1,38 +1,30 @@
-apply plugin: "fabric-loom"
-apply plugin: "io.github.juuxel.loom-vineflower"
-apply plugin: "maven-publish"
-apply plugin: "net.kyori.blossom"
-apply plugin: "com.replaymod.preprocess"
+// 1. 读取由根项目注入的变量
+final int mcVersion = project.mcVersion
 
-int mcVersion = 0
-preprocess {
-    def val = vars.get()["MC"]
-    if (val != null) {
-        mcVersion = val instanceof Integer ? val : Integer.parseInt(val.toString())
-    }
-    tabIndentation.set(false)
+apply plugin: 'maven-publish'
+apply plugin: 'fabric-loom'
+apply plugin: 'com.replaymod.preprocess'
+apply plugin: 'net.kyori.blossom'
+
+// 2. 判定 Java 版本 (1.20.1 -> Java 17)
+JavaVersion JAVA_COMPATIBILITY
+if (mcVersion >= 11800) {
+    JAVA_COMPATIBILITY = JavaVersion.VERSION_17
+} else if (mcVersion >= 11700) {
+    JAVA_COMPATIBILITY = JavaVersion.VERSION_16
+} else {
+    JAVA_COMPATIBILITY = JavaVersion.VERSION_1_8
 }
 
 repositories {
     mavenLocal()
-    maven { 
-        name = "HendrixShen"
-        url = "https://maven.hendrixshen.top/" 
-    }
     maven {
-        name = "Curse Maven"
-        url = "https://www.cursemaven.com"
-        content { includeGroup("curse.maven") }
+        url = 'https://jitpack.io'
+        content { includeGroupAndSubgroups('com.github') }
     }
-    maven {
-        name = "Modrinth Maven"
-        url = "https://api.modrinth.com/maven"
-        content { includeGroup("maven.modrinth") }
-    }
-    maven {
-        name = "Jitpack Maven"
-        url = "https://jitpack.io"
-    }
+    maven { url = 'https://maven.hendrixshen.top/' }
+    maven { url = 'https://www.cursemaven.com' }
+    maven { url = 'https://api.modrinth.com/maven' }
     mavenCentral()
 }
 
@@ -43,108 +35,63 @@ dependencies {
     modCompileOnly "org.projectlombok:lombok:${project.lombok_version}"
     annotationProcessor "org.projectlombok:lombok:${project.lombok_version}"
 
+    // MagicLib
     modImplementation("top.hendrixshen.magiclib:magiclib-${project.minecraft_version.replace(".", "_")}:${project.magiclib_version}") {
         exclude group: "carpet", module: "fabric-carpet"
     }
 
-    def deps = [
+    // 动态依赖
+    [
         ["curse.maven:minihud-244260", "minihud"],
         ["curse.maven:litematica-308892", "litematica"],
         ["maven.modrinth:client-commands", "clientcommands"]
-    ]
-
-    deps.forEach { item ->
-        String notation = item[0]
-        String prefix = item[1]
-        if (project.hasProperty("${prefix}_version")) {
-            modApi("${notation}:${project.property("${prefix}_version")}") {
-                transitive(prefix == "clientcommands")
+    ].each { entry ->
+        if (project.hasProperty("${entry[1]}_version")) {
+            modApi("${entry[0]}:${project.property("${entry[1]}_version")}") {
+                transitive(entry[1] == "clientcommands")
             }
         }
     }
-
+    
     runtimeOnly project(path: ":fabricWrapper")
 }
 
-group = project.mod_maven_group
-version = project.parent.version
-
-base {
-    archivesName = "${project.mod_archives_base_name}-${project.minecraft_version}"
-}
-
-loom {
-    interfaceInjection {
-        enableDependencyInterfaceInjection.set(true)
-    }
-
-    runConfigs.configureEach {
-        property "mixin.debug.export", "true"
-    }
-
-    runs {
-        client {
-            runDir "run/client"
-        }
-        server {
-            runDir "run/server"
-        }
-    }
-}
-
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    sourceCompatibility = JAVA_COMPATIBILITY
+    targetCompatibility = JAVA_COMPATIBILITY
     withSourcesJar()
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
-    options.release.set(17)
+}
+
+base {
+    archivesName = "${project.mod_archives_base_name}-mc${project.minecraft_version}"
 }
 
 processResources {
-    inputs.property "version", project.version
-
-    filesMatching("fabric.mod.json") {
-        expand([
-                "magiclib_dependency" : project.magiclib_dependency,
-                "minecraft_dependency": project.minecraft_dependency,
-                "minecraft_version"   : project.minecraft_version,
-                "mod_description"     : project.mod_description,
-                "mod_homepage"        : project.mod_homepage,
-                "mod_id"              : project.mod_id,
-                "mod_license"         : project.mod_license,
-                "mod_name"            : project.mod_name,
-                "mod_sources"         : project.mod_sources,
-                "mod_version"         : project.version
-        ])
-    }
-
-    from("${rootDir}/icon.png") {
-        into("assets/${project.mod_id}")
-    }
+    def props = [
+        "mod_id": project.mod_id,
+        "mod_name": project.mod_name,
+        "mod_version": project.version,
+        "minecraft_dependency": project.minecraft_dependency,
+        "magiclib_dependency": project.magiclib_dependency
+    ]
+    inputs.properties(props)
+    filesMatching("fabric.mod.json") { expand props }
 }
 
 blossom {
     replaceToken("@MOD_IDENTIFIER@", project.mod_id)
     replaceToken("@MOD_NAME@", project.mod_name)
-    replaceToken("@MINECRAFT_VERSION_IDENTIFY@", project.minecraft_version.replace(".", "_"))
-}
-
-jar {
-    from("${rootDir}/LICENSE")
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            artifactId = "${project.mod_id}-${project.minecraft_version.replace(".", "_")}"
             from components.java
-        }
-    }
-    repositories {
-        maven {
-            url = "$rootDir/publish"
+            artifactId = base.archivesName.get()
         }
     }
 }
