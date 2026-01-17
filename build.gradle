@@ -1,6 +1,7 @@
 plugins {
     id 'maven-publish'
-    id 'com.replaymod.preprocess' version 'c5abb4fb12' // 使用模板同款哈希
+    // 这里的 ID 会被 settings.gradle 里的 resolutionStrategy 拦截并重定向到 JitPack
+    id 'com.replaymod.preprocess' version 'c5abb4fb12'
     id 'net.fabricmc.fabric-loom' version '1.3-SNAPSHOT' apply false
     id 'io.github.juuxel.loom-vineflower' version '1.11.0' apply false
     id 'net.kyori.blossom' version '1.3.1' apply false
@@ -8,10 +9,10 @@ plugins {
 }
 
 preprocess {
-    // 定义节点：1.20.1 对应整数 12001
+    // 对齐模板的节点定义方式
     def mc1201 = createNode('1.20.1', 1_20_01, '')
 
-    // 关键启示：主动将 mcVersion 注入到子项目的 ext 变量中
+    // 关键启示：主动遍历节点并注入 mcVersion 变量
     for (final def node in getNodes()) {
         def p = findProject(node.project)
         if (p != null) {
@@ -20,18 +21,12 @@ preprocess {
     }
 }
 
-// 统一版本号逻辑
 ext {
     getBuildNumber = { System.getenv("GITHUB_RUN_NUMBER") ?: "dev" }
-    getArtifactVersion = {
-        def base = project.mod_version
-        return System.getenv("BUILD_RELEASE") == "true" ? base : "${base}+build.${getBuildNumber()}"
-    }
 }
 
-version = getArtifactVersion()
+version = "${project.mod_version}+build.${getBuildNumber()}"
 
-// 这里的 clean 任务保持
 tasks.register("cleanPreprocessSources") {
     doFirst { subprojects { delete(file("build/preprocessed")) } }
 }
